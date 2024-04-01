@@ -37,29 +37,6 @@ def send_rc_command(command, payload=[]):
         output_str += chr(wpi.serialGetchar(serial))
     print(f"Response: {output_str}")
 
-
-print("trying to get GIT to work. ")
-
-# # Example usage: Set pitch
-# def set_pitch(pitch_value):
-#     # Convert the uint16_t pitch value to two bytes (low byte, high byte)
-#     payload = list(struct.pack("<H", pitch_value))
-#     send_rc_command(0x0A, payload)
-
-
-# # Function to set the roll of the gimbal
-# def set_roll(roll_value):
-#     # Convert the uint16_t roll value to two bytes (low byte, high byte)
-#     payload = list(struct.pack("<H", roll_value))
-#     send_rc_command(0x0B, payload)  # CMD_SETROLL command byte is 0x0B
-
-# # Function to set the yaw of the gimbal
-# def set_yaw(yaw_value):
-#     # Convert the uint16_t yaw value to two bytes (low byte, high byte)
-#     payload = list(struct.pack("<H", yaw_value))
-#     send_rc_command(0x0C, payload)  # CMD_SETYAW command byte is 0x0C
-
-
 def set_angles(pitch, roll, yaw):
     # Convert float angles to bytes
     pitch_bytes = struct.pack("<f", pitch)
@@ -73,27 +50,6 @@ def set_angles(pitch, roll, yaw):
     
     # Send command
     send_rc_command(0x11, list(payload))
-
-
-# def handle_input():
-#     while True:
-#         # Assuming inputs like 'pitch 1500', 'roll 1200', 'yaw 1300'
-#         user_input = input("Enter command (e.g., 'pitch 1500'): ")
-#         if user_input == "quit":
-#             # Close the serial connection
-#             wpi.serialClose(serial)
-#             break
-#         try:
-#             command, value = user_input.split()
-#             value = int(value)
-#             if command == "pitch":
-#                 set_pitch(value)
-#             elif command == "roll":
-#                 set_roll(value)
-#             elif command == "yaw":
-#                 set_yaw(value)
-#         except ValueError:
-#             print("Invalid input. Please enter commands like 'pitch 1500'.")
 
 
 def handle_angles_input():
@@ -114,9 +70,6 @@ def handle_angles_input():
                 print("Invalid command. Please use the 'angles' command.")
         except ValueError:
             print("Invalid input. Please enter commands like 'angles 10.0 -5.0 0.0'.")
-
-
-
 
 
 def center_object(frame_center, object_center, current_pitch, current_yaw):
