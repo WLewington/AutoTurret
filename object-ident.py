@@ -38,6 +38,8 @@ def send_rc_command(command, payload=[]):
     print(f"Response: {output_str}")
 
 
+print("trying to get GIT to work. ")
+
 # # Example usage: Set pitch
 # def set_pitch(pitch_value):
 #     # Convert the uint16_t pitch value to two bytes (low byte, high byte)
