@@ -72,27 +72,29 @@ def handle_angles_input():
             print("Invalid input. Please enter commands like 'angles 10.0 -5.0 0.0'.")
 
 
-def center_object(frame_center, object_center, current_pitch, current_yaw):
-    # Adjusted constants based on the provided camera specifications
-    PIXELS_PER_DEGREE_YAW = 640 / 70  # Updated for a 70 degree horizontal FOV
-    PIXELS_PER_DEGREE_PITCH = 480 / (70 * (480 / 640))  # Assuming the same aspect ratio for vertical FOV
+def center_object(frame_center, object_center, current_yaw):
+    PIXELS_PER_DEGREE_YAW = 640 / 70  # Assuming a 70 degree horizontal FOV
 
-    # Calculate how far off-center the object is
+    # Get the x-coordinate difference between object center and frame center
     dx_pixels = object_center[0] - frame_center[0]
-    dy_pixels = object_center[1] - frame_center[1]
 
-    # Convert pixels to degrees
-    dx_degrees = dx_pixels / PIXELS_PER_DEGREE_YAW
-    dy_degrees = dy_pixels / PIXELS_PER_DEGREE_PITCH
+    # Calculate the yaw adjustment in degrees
+    yaw_adjustment = dx_pixels / PIXELS_PER_DEGREE_YAW
 
-    # Adjust current angles based on the calculations
-    new_yaw = current_yaw + dx_degrees
-    new_pitch = current_pitch - dy_degrees  # Subtract because a positive pitch usually means tilting upwards
+    # Determine the direction of adjustment needed to center the object
+    if object_center[0] > frame_center[0]:
+        # Object is to the right, decrease yaw to move camera to the right
+        new_yaw = current_yaw + yaw_adjustment
+    else:
+        # Object is to the left, increase yaw to move camera to the left
+        new_yaw = current_yaw - yaw_adjustment
 
-    # Apply the new angles
-    set_angles(new_pitch, 0, new_yaw)  # Roll is not adjusted, left as 0
+    # Apply the new yaw
+    set_angles(0, 0, new_yaw)
 
-    return new_pitch, new_yaw
+    return new_yaw
+
+
 
 
 
@@ -135,7 +137,7 @@ def getObjects(img, thres, nms, draw=True, objects=[]):
                 # Correctly calculate the center of the detected object using 'box'
                 object_center = (box[0] + box[2] // 2, box[1] + box[3] // 2)
                 # Call center_object to adjust gimbal
-                current_pitch, current_yaw = center_object(frame_center, object_center, current_pitch, current_yaw)
+                current_yaw = center_object(frame_center, object_center, current_yaw)
 
     return img,objectInfo
 
