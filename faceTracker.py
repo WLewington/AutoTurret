@@ -97,6 +97,7 @@ def calculate_gimbal_angles(cx, cy, cam_cx, cam_cy):
     # These factors might need adjustment based on your gimbal's specific behavior and range of motion.
     yaw = int(dx / 7)
     pitch = int(dy / 6)
+    print("Yaw: " + str(yaw) + " , Pitch: " + str(pitch))
 
     # Ensure the pitch and yaw adjustments are within the gimbal's allowed range
     # This might require specific limits based on your gimbal's capabilities
@@ -153,20 +154,46 @@ class MotionDetector:
         return contours
 
 
+class FaceDetector:
+    def __init__(self):
+        # Specify the full path to the Haar Cascade XML file
+        cascade_path = "/home/odroid/Desktop/Object_Detection_Files/cascades/haarcascade_frontalface_default.xml"
+        
+        # Load the pre-trained Haar Cascade model for face detection using the specified path
+        self.face_cascade = cv2.CascadeClassifier(cascade_path)
+
+        
+    def detect_faces(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)  # Draw a blue rectangle around each face
+        
+        return frame, faces
+
 # Initialize WebcamVideoStream and start the capture thread
 webcam_stream = WebcamVideoStream(src=0, width=640, height=480).start()
 
-# Initialize the MotionDetector
-motion_detector = MotionDetector()
+# # Initialize the MotionDetector
+# motion_detector = MotionDetector()
+
+# Initialize the FaceDetector
+face_detector = FaceDetector()
 
 # Start the gimbal control loop in a separate thread
-Thread(target=gimbal_control_loop, args=(motion_detector, webcam_stream), daemon=True).start()
+# Thread(target=gimbal_control_loop, args=(motion_detector, webcam_stream), daemon=True).start()
 
 try:
     while True:
         # Main loop can be used for additional tasks or to display the frames
         frame = webcam_stream.read()
-        cv2.imshow("Frame", frame)
+
+        # Detect faces and draw rectangles around them
+        frame_with_faces, faces = face_detector.detect_faces(frame)
+
+        cv2.imshow("Frame", frame_with_faces)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 finally:
