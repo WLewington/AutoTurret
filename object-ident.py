@@ -10,6 +10,22 @@ frame_center = (320, 240)  # Assuming a 640x480 frame, this is the center
 current_pitch = 0  # Initial pitch
 current_yaw = 0  # Initial yaw
 
+# Initialize variables for calculating FPS
+frame_count = 0
+start_time = time.time()
+
+def print_fps():
+    global frame_count, start_time
+    frame_count += 1
+    current_time = time.time()
+    elapsed_time = current_time - start_time
+
+    if elapsed_time >= 1:  # Update every second
+        fps = frame_count / elapsed_time
+        print(f"FPS: {fps:.2f}")
+        frame_count = 0
+        start_time = time.time()
+
 # Function to calculate x25 CRC
 def crc_x25(buffer):
     crc = 0xffff
@@ -72,27 +88,38 @@ def handle_angles_input():
             print("Invalid input. Please enter commands like 'angles 10.0 -5.0 0.0'.")
 
 
-def center_object(frame_center, object_center, current_yaw):
+def center_object(frame_center, object_center, current_pitch, current_yaw):
     PIXELS_PER_DEGREE_YAW = 640 / 70  # Assuming a 70 degree horizontal FOV
+    PIXELS_PER_DEGREE_PITCH = 480 / 70  # Assuming a 70 degree vertical FOV, adjust as necessary
+    YAW_THRESHOLD = 1  # Minimum yaw change in degrees to send a new command
+    PITCH_THRESHOLD = 1  # Minimum pitch change in degrees to send a new command
 
-    # Get the x-coordinate difference between object center and frame center
+    # Get the x and y-coordinate differences between object center and frame center
     dx_pixels = object_center[0] - frame_center[0]
+    dy_pixels = object_center[1] - frame_center[1]
 
-    # Calculate the yaw adjustment in degrees
+    # Calculate the yaw and pitch adjustments in degrees
     yaw_adjustment = dx_pixels / PIXELS_PER_DEGREE_YAW
+    pitch_adjustment = dy_pixels / PIXELS_PER_DEGREE_PITCH
 
-    # Determine the direction of adjustment needed to center the object
-    if object_center[0] > frame_center[0]:
-        # Object is to the right, decrease yaw to move camera to the right
-        new_yaw = current_yaw + yaw_adjustment
+    DAMPING_FACTOR = 0.2  # Adjust this value based on testing
+    # Calculate the new yaw and pitch with damping
+    new_yaw = current_yaw - (yaw_adjustment * DAMPING_FACTOR)
+    new_pitch = current_pitch + (pitch_adjustment * DAMPING_FACTOR)
+
+    print(f"Current yaw: {current_yaw:.2f}, Yaw adjustment: {yaw_adjustment:.2f}, New yaw: {new_yaw:.2f}")
+    print(f"Current pitch: {current_pitch:.2f}, Pitch adjustment: {pitch_adjustment:.2f}, New pitch: {new_pitch:.2f}")
+
+    # Check if the yaw change is significant enough to warrant a command
+    if abs(yaw_adjustment) > YAW_THRESHOLD or abs(pitch_adjustment) > PITCH_THRESHOLD:
+        print("Significant yaw or pitch change detected. Sending new command.")
+        set_angles(new_pitch, 0, new_yaw)  # Assuming roll is not used and thus set to 0
+        return new_pitch, new_yaw
     else:
-        # Object is to the left, increase yaw to move camera to the left
-        new_yaw = current_yaw - yaw_adjustment
+        # If the changes are too small, don't send a new command
+        print("Minor yaw or pitch change detected. No command sent.")
+        return current_pitch, current_yaw
 
-    # Apply the new yaw
-    set_angles(0, 0, new_yaw)
-
-    return new_yaw
 
 
 
@@ -137,7 +164,7 @@ def getObjects(img, thres, nms, draw=True, objects=[]):
                 # Correctly calculate the center of the detected object using 'box'
                 object_center = (box[0] + box[2] // 2, box[1] + box[3] // 2)
                 # Call center_object to adjust gimbal
-                current_yaw = center_object(frame_center, object_center, current_yaw)
+                current_pitch, current_yaw = center_object(frame_center, object_center, current_pitch, current_yaw)
 
     return img,objectInfo
 
@@ -159,7 +186,11 @@ if __name__ == "__main__":
 
         success, img = cap.read()
         # Settings for tweaking what objects to look for and what certenty. 
-        result, objectInfo = getObjects(img, 0.55, 0.2, objects=['bottle', 'cup','person'])
+        result, objectInfo = getObjects(img, 0.55, 0.2, objects=['person'])
+
+        # Call the function to print FPS
+        print_fps()
+
         #print(objectInfo)
         cv2.imshow("Output",img)
 
