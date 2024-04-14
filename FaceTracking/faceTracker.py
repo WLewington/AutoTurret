@@ -3,6 +3,7 @@ import time
 import odroid_wiringpi as wpi
 import threading
 import struct
+import queue
 
 serial = wpi.serialOpen('/dev/ttyS1', 115200)
 
@@ -122,6 +123,7 @@ class WebcamVideoStream:
     def update(self):
         while True:
             if self.stopped:
+                self.stream.release()
                 return
             self.grabbed, self.frame = self.stream.read()
 
@@ -132,31 +134,78 @@ class WebcamVideoStream:
         self.stopped = True
 
 
+class FaceDetection:
+    def __init__(self, frame_queue, cascade_path, focal_length, real_face_width=15):
+        self.frame_queue = frame_queue
+        self.cascade = cv2.CascadeClassifier(cascade_path)
+        self.stopped = False
+        self.fps_start_time = time.time()
+        self.fps_count = 0
+        self.debug = True
+        self.focal_length = focal_length
+        self.real_face_width = real_face_width
+
+    def start(self):
+        t = threading.Thread(target=self.detect_faces)
+        t.daemon = True
+        t.start()
+        return self
+
+    def show_FPS(self):
+        FRAME_COUNTER = 10
+        self.fps_count += 1
+        if self.fps_count >= FRAME_COUNTER:
+            duration = float(time.time() - self.fps_start_time)
+            FPS = float(FRAME_COUNTER / duration)
+            print("show_FPS - Processing at %.2f fps last %i frames" % (FPS, self.fps_count))
+            self.fps_count = 0
+            self.fps_start_time = time.time()
+
+    def detect_faces(self):
+        while not self.stopped:
+            if not self.frame_queue.empty():
+                frame = self.frame_queue.get()
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = self.cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                for (x, y, w, h) in faces:
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                    center_x = x + w // 2
+                    center_y = y + h // 2
+                    distance = self.calculate_distance(w)
+                    print(f"Face center at X: {center_x}, Y: {center_y}, Distance: {distance:.2f} cm")
+                cv2.imshow('Face Detection', frame)
+                self.show_FPS()
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    self.stopped = True
+
+    def calculate_distance(self, face_width_pixels):
+        return (self.focal_length * self.real_face_width) / face_width_pixels
+
+    def stop(self):
+        self.stopped = True
+
 
 def main():
+
+    frame_queue = queue.Queue(maxsize=10)
+    focal_length = 500  # This is an example value; you'll need to calibrate this for your camera
+   
+    video_stream = WebcamVideoStream().start()
     # Load the pre-trained Haar Cascade for face detection
     cascade_path = "/home/odroid/Desktop/Object_Detection_Files/FaceTracking/cascades/haarcascade_frontalface_default.xml"
-    face_cascade = cv2.CascadeClassifier(cascade_path)
+    face_detection = FaceDetection(frame_queue, cascade_path, focal_length).start()
 
-    # Initialize the video stream
-    video_stream = WebcamVideoStream().start()
 
     while True:
         frame = video_stream.read()
-        if frame is None:
+        if frame is None or face_detection.stopped:
             break
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-
-        cv2.imshow('Face Detection', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        if not frame_queue.full():
+            frame_queue.put(frame)
 
     video_stream.stop()
+    face_detection.stop()
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
