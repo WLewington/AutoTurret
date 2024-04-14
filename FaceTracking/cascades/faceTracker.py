@@ -75,8 +75,6 @@ def gimbal_control_loop(detector, webcam_stream):
         
         time.sleep(0.1)  # Adjust based on your needs
 
-
-
 def calculate_gimbal_angles(cx, cy, cam_cx, cam_cy):
     """
     Calculate the adjustments needed for the gimbal to center the detected motion.
