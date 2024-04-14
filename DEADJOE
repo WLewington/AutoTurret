@@ -1,0 +1,22 @@
+
+*** These modified files were found in JOE when it aborted on Sun Apr 14 19:41:39 2024
+*** JOE was aborted by UNIX signal 1
+
+*** File '(Unnamed)'
+/home/odroid/Desktop/FaceTracking/AutoTurret/.git/COMMIT_EDITMSG
+
+*** File '/home/odroid/Desktop/FaceTracking/AutoTurret/.git/COMMIT_EDITMSG'
+added gimbal control to the face dePlease enter the commit message for your changes. Lines startingwith '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	modified:   faceTracker.py
+#
+
+*** File '* Startup Log *'
+Processing '/etc/joe/editorrc'...
+Processing '/etc/joe/ftyperc'...
+Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/editorrc

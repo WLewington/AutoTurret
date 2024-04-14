@@ -48,62 +48,16 @@ def set_angles(pitch, yaw):
     # Send command
     send_rc_command(0x11, list(payload))
 
-def gimbal_control_loop(detector, webcam_stream):
-    cam_cx = 640 // 2
-    cam_cy = 480 // 2
-    # 640x480
-    
-    while True:
-        frame = webcam_stream.read()
-        contours = detector.process_frame(frame)
-        if contours:
-            # Assuming the largest contour is our point of interest
-            largest_contour = max(contours, key=cv2.contourArea)
-            M = cv2.moments(largest_contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                
-                # Calculate gimbal angles to center detected motion
-                pitch, yaw = calculate_gimbal_angles(cx, cy, cam_cx, cam_cy)
-                
-                # Update gimbal position - Assuming set_angles takes pitch and yaw, and roll is not used
-                set_angles(pitch, yaw)
-            else:
-                print("No valid contour detected.")
-        else:
-            print("No motion detected.")
-        
-        time.sleep(0.1)  # Adjust based on your needs
+def gimbal_control(stream, center_x, center_y):
+    frame_center_x = stream.width // 2
+    frame_center_y = stream.height // 2
 
-def calculate_gimbal_angles(cx, cy, cam_cx, cam_cy):
-    """
-    Calculate the adjustments needed for the gimbal to center the detected motion.
+    pitch = center_x - frame_center_x
+    yaw = center_y - frame_center_y
 
-    Parameters:
-    - cx, cy: The center coordinates of the detected motion.
-    - cam_cx, cam_cy: The center coordinates of the camera's field of view.
+    print(f"pitch: {pitch}, yaw: {yaw}")
 
-    Returns:
-    - (pitch, yaw): The pitch and yaw adjustments needed to center the detected motion.
-    """
-    # Calculate the difference between the center of the detected motion and the camera's center
-    dx = cam_cx - cx
-    dy = cam_cy - cy
-
-    # Convert the differences into pitch and yaw adjustments
-    # The sensitivity factors (7 and 6) were used in the original script to convert coordinate differences into servo angles.
-    # These factors might need adjustment based on your gimbal's specific behavior and range of motion.
-    yaw = int(dx / 7)
-    pitch = int(dy / 6)
-    print("Yaw: " + str(yaw) + " , Pitch: " + str(pitch))
-
-    # Ensure the pitch and yaw adjustments are within the gimbal's allowed range
-    # This might require specific limits based on your gimbal's capabilities
-    # yaw = max(min(yaw, max_yaw), min_yaw)
-    # pitch = max(min(pitch, max_pitch), min_pitch)
-
-    return pitch, yaw
+    set_angles(pitch, yaw)
 
 
 class WebcamVideoStream:
@@ -113,6 +67,8 @@ class WebcamVideoStream:
         self.stream.set(4, CAM_HEIGHT)
         self.grabbed, self.frame = self.stream.read()
         self.stopped = False
+        self.width = CAM_WIDTH
+        self.height = CAM_HEIGHT
 
     def start(self):
         t = threading.Thread(target=self.update, args=())
@@ -135,8 +91,9 @@ class WebcamVideoStream:
 
 
 class FaceDetection:
-    def __init__(self, frame_queue, cascade_path, focal_length, real_face_width=15):
+    def __init__(self, frame_queue, control_queue, cascade_path, focal_length, real_face_width=15):
         self.frame_queue = frame_queue
+        self.control_queue = control_queue  # Added control queue here
         self.cascade = cv2.CascadeClassifier(cascade_path)
         self.stopped = False
         self.fps_start_time = time.time()
@@ -157,7 +114,7 @@ class FaceDetection:
         if self.fps_count >= FRAME_COUNTER:
             duration = float(time.time() - self.fps_start_time)
             FPS = float(FRAME_COUNTER / duration)
-            print("show_FPS - Processing at %.2f fps last %i frames" % (FPS, self.fps_count))
+            # print("show_FPS - Processing at %.2f fps last %i frames" % (FPS, self.fps_count))
             self.fps_count = 0
             self.fps_start_time = time.time()
 
@@ -173,6 +130,8 @@ class FaceDetection:
                     center_y = y + h // 2
                     distance = self.calculate_distance(w)
                     print(f"Face center at X: {center_x}, Y: {center_y}, Distance: {distance:.2f} cm")
+                    # Put the center coordinates in the control queue for the gimbal control to use
+                    self.control_queue.put((center_x, center_y))
                 cv2.imshow('Face Detection', frame)
                 self.show_FPS()
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -184,17 +143,23 @@ class FaceDetection:
     def stop(self):
         self.stopped = True
 
+def handle_input(input_queue):
+    while True:
+        try:
+            user_input = input("Enter pitch and yaw values separated by a space (pitch yaw): ")
+            pitch, yaw = map(float, user_input.split())
+            input_queue.put((pitch, yaw))
+        except ValueError:
+            print("Invalid input. Please enter two numeric values.")
 
 def main():
-
     frame_queue = queue.Queue(maxsize=10)
-    focal_length = 500  # This is an example value; you'll need to calibrate this for your camera
-   
-    video_stream = WebcamVideoStream().start()
-    # Load the pre-trained Haar Cascade for face detection
-    cascade_path = "/home/odroid/Desktop/Object_Detection_Files/FaceTracking/cascades/haarcascade_frontalface_default.xml"
-    face_detection = FaceDetection(frame_queue, cascade_path, focal_length).start()
+    control_queue = queue.Queue()
+    focal_length = 500
 
+    video_stream = WebcamVideoStream().start()
+    cascade_path = "/home/odroid/Desktop/Object_Detection_Files/FaceTracking/cascades/haarcascade_frontalface_default.xml"
+    face_detection = FaceDetection(frame_queue, control_queue, cascade_path, focal_length).start()
 
     while True:
         frame = video_stream.read()
@@ -203,6 +168,11 @@ def main():
 
         if not frame_queue.full():
             frame_queue.put(frame)
+
+        if not control_queue.empty():
+            center_x, center_y = control_queue.get()
+            gimbal_control(video_stream, center_x, center_y)  # Pass center to function
+
 
     video_stream.stop()
     face_detection.stop()
