@@ -142,15 +142,7 @@ class FaceDetection:
 
     def stop(self):
         self.stopped = True
-
-def handle_input(input_queue):
-    while True:
-        try:
-            user_input = input("Enter pitch and yaw values separated by a space (pitch yaw): ")
-            pitch, yaw = map(float, user_input.split())
-            input_queue.put((pitch, yaw))
-        except ValueError:
-            print("Invalid input. Please enter two numeric values.")
+        
 
 def main():
     frame_queue = queue.Queue(maxsize=10)
