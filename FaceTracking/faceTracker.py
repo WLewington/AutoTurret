@@ -1,7 +1,7 @@
 import cv2
 import time
 import odroid_wiringpi as wpi
-from threading import Thread
+import threading
 import struct
 
 serial = wpi.serialOpen('/dev/ttyS1', 115200)
@@ -106,22 +106,24 @@ def calculate_gimbal_angles(cx, cy, cam_cx, cam_cy):
 
 
 class WebcamVideoStream:
-    def __init__(self, src=0, width=640, height=480):
-        self.stream = cv2.VideoCapture(src)
-        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        (self.grabbed, self.frame) = self.stream.read()
+    def __init__(self, CAM_SRC=0, CAM_WIDTH=640, CAM_HEIGHT=480):
+        self.stream = cv2.VideoCapture(CAM_SRC)
+        self.stream.set(3, CAM_WIDTH)
+        self.stream.set(4, CAM_HEIGHT)
+        self.grabbed, self.frame = self.stream.read()
         self.stopped = False
 
     def start(self):
-        Thread(target=self.update, args=(), daemon=True).start()
+        t = threading.Thread(target=self.update, args=())
+        t.daemon = True
+        t.start()
         return self
 
     def update(self):
         while True:
             if self.stopped:
                 return
-            (self.grabbed, self.frame) = self.stream.read()
+            self.grabbed, self.frame = self.stream.read()
 
     def read(self):
         return self.frame
@@ -130,70 +132,32 @@ class WebcamVideoStream:
         self.stopped = True
 
 
-class MotionDetector:
-    def __init__(self):
-        self.prev_frame = None
 
-    def process_frame(self, frame):
+def main():
+    # Load the pre-trained Haar Cascade for face detection
+    cascade_path = "/home/odroid/Desktop/Object_Detection_Files/FaceTracking/cascades/haarcascade_frontalface_default.xml"
+    face_cascade = cv2.CascadeClassifier(cascade_path)
+
+    # Initialize the video stream
+    video_stream = WebcamVideoStream().start()
+
+    while True:
+        frame = video_stream.read()
+        if frame is None:
+            break
+        
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (21, 21), 0)
-        
-        if self.prev_frame is None:
-            self.prev_frame = gray
-            return None
-        
-        frame_diff = cv2.absdiff(self.prev_frame, gray)
-        thresh = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)[1]
-        thresh = cv2.dilate(thresh, None, iterations=2)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        self.prev_frame = gray
-        
-        return contours
-
-
-class FaceDetector:
-    def __init__(self):
-        # Specify the full path to the Haar Cascade XML file
-        cascade_path = "/home/odroid/Desktop/Object_Detection_Files/cascades/haarcascade_frontalface_default.xml"
-        
-        # Load the pre-trained Haar Cascade model for face detection using the specified path
-        self.face_cascade = cv2.CascadeClassifier(cascade_path)
-
-        
-    def detect_faces(self, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
         for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)  # Draw a blue rectangle around each face
-        
-        return frame, faces
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
-# Initialize WebcamVideoStream and start the capture thread
-webcam_stream = WebcamVideoStream(src=0, width=640, height=480).start()
-
-# # Initialize the MotionDetector
-# motion_detector = MotionDetector()
-
-# Initialize the FaceDetector
-face_detector = FaceDetector()
-
-# Start the gimbal control loop in a separate thread
-# Thread(target=gimbal_control_loop, args=(motion_detector, webcam_stream), daemon=True).start()
-
-try:
-    while True:
-        # Main loop can be used for additional tasks or to display the frames
-        frame = webcam_stream.read()
-
-        # Detect faces and draw rectangles around them
-        frame_with_faces, faces = face_detector.detect_faces(frame)
-
-        cv2.imshow("Frame", frame_with_faces)
-
+        cv2.imshow('Face Detection', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-finally:
-    webcam_stream.stop()
+
+    video_stream.stop()
     cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
