@@ -159,6 +159,10 @@ class FaceDetection:
                     # print(f"Face center at X: {center_x}, Y: {center_y}, Distance: {distance:.2f} cm")
                     # Put the center coordinates in the control queue for the gimbal control to use
                     self.control_queue.put((center_x, center_y, distance))
+
+                    # Display the distance on the frame
+                    cv2.putText(frame, f"Distance: {distance:.2f} cm", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
                 cv2.imshow('Face Detection', frame)
                 self.show_FPS()
                 if cv2.waitKey(1) & 0xFF == ord('q'):
