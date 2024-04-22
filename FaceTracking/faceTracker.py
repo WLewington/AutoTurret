@@ -62,29 +62,31 @@ def gimbal_control(stream, center_x, center_y, distance):
     error_x = center_x - frame_center_x
     error_y = center_y - frame_center_y
 
-    # print(f"Box Difference X: {error_x}, Y: {error_y}")
-    print(f"Face center at X: {center_x}, Y: {center_y}, Distance: {distance:.2f} cm")
 
     # Convert error to angle adjustments; using a factor to scale the error to a suitable angle change
     # You may need to adjust these factors based on the responsiveness and range of your gimbal
     pitch_change = error_y / 150.0
-    yaw_change = error_x / 150.0
+    
+    yaw_change = error_x / 50.0
 
     # Update current angles by adding the calculated changes
     current_pitch += pitch_change
-    current_yaw += -yaw_change
+    current_yaw += round(-yaw_change, 3 )
 
     # Damping factor
     damping = 0.9
 
     # Keep angles within a reasonable range if necessary, especially if your gimbal has limited movement range
     current_pitch = round(max(min(current_pitch, 45), -45) * damping, 3)  # Assuming the gimbal can tilt between -90 and 90 degrees
-    current_yaw = round(max(min(current_yaw, 180), -180) * damping, 3) # Assuming the gimbal can pan between -90 and 90 degrees
+    # current_yaw = round(max(min(current_yaw, 180), -180) * damping, 3) # Assuming the gimbal can pan between -90 and 90 degrees
 
-    print(f"Adjusting to pitch: {current_pitch}, yaw: {current_yaw}")
+    # print(f"Adjusting to pitch: {current_pitch}, yaw: {current_yaw}")
+    # print(f"Face center at X: {center_x}, Y: {center_y}, Distance: {distance:.2f} cm")
+
+    print(f"Box Difference X: {error_x}, Y: {error_y}  Gimbal change X:{yaw_change}, current yaw postion {current_yaw}")
 
     # Set the new angles
-    set_angles(current_pitch, current_yaw)
+    set_angles(-5, current_yaw)
 
 
 class WebcamVideoStream:
