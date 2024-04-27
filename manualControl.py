@@ -27,11 +27,10 @@ def send_rc_command(command, payload=[]):
     message += [crc & 0xFF, crc >> 8]
     message_bytes = bytes(message)
     wpi.serialFlush(serial)
-    # print(f"Sending: {message_bytes.hex()}")  # Display hex representation of what is being sent
+    print(f"Sending: {message_bytes.hex()}")  # Display hex representation of what is being sent
     for byte in message_bytes:
         wpi.serialPutchar(serial, byte)
     time.sleep(0.2)
-
 
 def set_angles(pitch, yaw):
     # Convert float angles to bytes
@@ -48,7 +47,6 @@ def set_angles(pitch, yaw):
     send_rc_command(0x11, list(payload))
     process_gimbal_response(serial)
 
-
 def read_response(serial, timeout=0.5):
     end_time = time.time() + timeout
     response = []
@@ -59,7 +57,6 @@ def read_response(serial, timeout=0.5):
             break
         time.sleep(0.05)  # Give a short delay to allow data to arrive
     return response
-
 
 def interpret_response(response):
     if len(response) < 6:
@@ -101,27 +98,8 @@ def interpret_response(response):
 def process_gimbal_response(serial):
     response_bytes = read_response(serial)
     message = interpret_response(response_bytes)
-    print(f"Response: {message}")
-    # Debugging: Print raw response to see what's being received
-    print(f"Raw Response Bytes: {response_bytes}")
+    print(f"Response: {message} - Payload: {response_bytes}")
 
-
-# Command-line interface to accept user input
-while True:
-    try:
-        input_str = input("Enter pitch and yaw angles separated by a space, or 'exit' to quit: ")
-        if input_str.lower() == 'exit':
-            break
-        pitch, yaw = map(float, input_str.split())
-        set_angles(pitch, yaw)
-    except ValueError:
-        print("Please enter valid floating-point numbers for pitch and yaw.")
-    except KeyboardInterrupt:
-        print("\nExiting...")
-        break
-
-# Clean up
-wpi.serialClose(serial)
 
 def normalize_adc_value(value, deadband=100):
     # Shift the range so that the midpoint is at zero
@@ -130,6 +108,22 @@ def normalize_adc_value(value, deadband=100):
     if -deadband <= normalized_value <= deadband:
         return 0
     return normalized_value
+
+def convert_int_to_float(value, limit):
+    # Check if the input value is within the expected range
+    if not -2048 <= value <= 2048:
+        raise ValueError("Input value must be between -2047 and 2047.")
+
+    # Define the conversion factors based on the ranges
+    min_int, max_int = -2048, 2048
+    min_float, max_float = -limit, limit
+
+    # Perform the conversion
+    # Formula: new_value = (old_value - old_min) / (old_max - old_min) * (new_max - new_min) + new_min
+    converted_float = (value - min_int) / (max_int - min_int) * (max_float - min_float) + min_float
+
+    # Return the value rounded to two decimal places
+    return round(converted_float, 2)
 
 # The pin number must be set according to the WiringPi setup
 adc_pin1 = 29 
@@ -144,27 +138,18 @@ ADC_MID = (ADC_MAX - ADC_MIN + 1) // 2
 current_pitch = 0.0
 current_yaw = 0.0
 
+try:
+    while True:
+        analog_value1 = wpi.analogRead(adc_pin1)
+        analog_value2 = wpi.analogRead(adc_pin2)
+        yawReading = convert_int_to_float(normalize_adc_value(analog_value2), 120)
+        pitchReading = convert_int_to_float(normalize_adc_value(analog_value1), 30)
+        print(f"Current value on Y: {pitchReading} X: {yawReading}")
+        set_angles(pitchReading, yawReading)
 
+except KeyboardInterrupt:
+    print("\nExiting...")
 
-# # Example usage within an interactive loop
-# try:
-#     while True:
-#         # Simulate joystick input or replace with actual ADC read values
-#         input_str = input("Enter pitch and yaw increments, or 'exit' to quit: ")
-#         if input_str.lower() == 'exit':
-#             break
-#         pitch_inc, yaw_inc = map(float, input_str.split())
-#         set_angles(pitch_inc, yaw_inc)
-# except KeyboardInterrupt:
-#     print("\nExiting...")
-
-
-# try:
-#     while True:
-#         analog_value1 = wpi.analogRead(adc_pin1)
-#         analog_value2 = wpi.analogRead(adc_pin2)
-#         print(f"Current value on Y: {normalize_adc_value(analog_value1)} X: {normalize_adc_value(analog_value2)}")
-
-# except KeyboardInterrupt:
-#     print("\nExiting...")
+finally:
+    wpi.serialClose(serial)
 
