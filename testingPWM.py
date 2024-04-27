@@ -7,7 +7,7 @@ print("hey what's up dick head")
 wpi.wiringPiSetup()
 
 # Define the GPIO pin (Using WiringPi pin number)
-pin = 1  # As an example, I'm using pin 12 for GPIOX.16, change it as needed
+pin = 3  # As an example, I'm using pin 12 for GPIOX.16, change it as needed
 
 def pwmTest():
     # Set the pin to PWM OUTPUT mode
