@@ -47,6 +47,30 @@ def set_angles(pitch, yaw):
     send_rc_command(0x11, list(payload))
     process_gimbal_response(serial)
 
+def update_angles(pitch_delta, yaw_delta):
+    global current_pitch, current_yaw
+    # Update current angles by adding deltas
+    current_pitch += pitch_delta
+    current_yaw += yaw_delta
+
+    # Ensure the angles stay within a sensible range, e.g., -120 to 120 degrees
+    current_pitch = round(max(min(current_pitch, 120), -120), 2)
+    current_yaw = round(max(min(current_yaw, 120), -120), 2)
+
+    # Convert float angles to bytes
+    pitch_bytes = struct.pack("<f", current_pitch)
+    roll_bytes = struct.pack("<f", 0)
+    yaw_bytes = struct.pack("<f", current_yaw)
+    flags_byte = b'\x00'
+    type_byte = b'\x00'
+
+    # Construct the payload
+    payload = list(pitch_bytes + roll_bytes + yaw_bytes + flags_byte + type_byte)
+    
+    # Send command
+    send_rc_command(0x11, payload)
+    process_gimbal_response(serial)
+
 def read_response(serial, timeout=0.5):
     end_time = time.time() + timeout
     response = []
@@ -138,18 +162,28 @@ ADC_MID = (ADC_MAX - ADC_MIN + 1) // 2
 current_pitch = 0.0
 current_yaw = 0.0
 
+
 try:
     while True:
         analog_value1 = wpi.analogRead(adc_pin1)
         analog_value2 = wpi.analogRead(adc_pin2)
-        yawReading = convert_int_to_float(normalize_adc_value(analog_value2), 120)
-        pitchReading = convert_int_to_float(normalize_adc_value(analog_value1), 30)
-        print(f"Current value on Y: {pitchReading} X: {yawReading}")
-        set_angles(pitchReading, yawReading)
+        
+        # Normalize values and convert to float
+        yaw_change = convert_int_to_float(normalize_adc_value(analog_value2), 120)  # Assuming deadband of 50
+        pitch_change = convert_int_to_float(normalize_adc_value(analog_value1), 30)  # Assuming deadband of 50
+
+        # Check if there is significant movement
+        if abs(yaw_change) > 0.1 or abs(pitch_change) > 0.1:
+            print(f"Applying Changes: Pitch {pitch_change}, Yaw {yaw_change}")
+            update_angles(pitch_change, yaw_change)
+        else:
+            print(f"No significant movement detected.")
+
+        print(f"Current Angles: Pitch {current_pitch}, Yaw {current_yaw}")
+        time.sleep(0.1)  # Short delay to reduce processing load
 
 except KeyboardInterrupt:
     print("\nExiting...")
 
 finally:
     wpi.serialClose(serial)
-
