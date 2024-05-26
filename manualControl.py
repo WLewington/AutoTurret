@@ -124,7 +124,6 @@ def process_gimbal_response(serial):
     message = interpret_response(response_bytes)
     print(f"Response: {message} - Payload: {response_bytes}")
 
-
 def normalize_adc_value(value, deadband=100):
     # Shift the range so that the midpoint is at zero
     normalized_value = value - ADC_MID
@@ -149,9 +148,18 @@ def convert_int_to_float(value, limit):
     # Return the value rounded to two decimal places
     return round(converted_float, 2)
 
+# Function to read the pin value
+def read_switch(pin):
+    input_state = wpi.digitalRead(pin)
+    if input_state == wpi.LOW:
+        print("Switch Pressed")
+    else:
+        print("Switch Released")
+
 # The pin number must be set according to the WiringPi setup
 adc_pin1 = 29 
 adc_pin2 = 25
+sw_pin   = 26
 
 # Constants for ADC range
 ADC_MIN = 0
@@ -162,11 +170,18 @@ ADC_MID = (ADC_MAX - ADC_MIN + 1) // 2
 current_pitch = 0.0
 current_yaw = 0.0
 
+# Setting up joystick switch.
+wpi.pinMode(sw_pin, wpi.INPUT_PULLUP)
+
 
 try:
     while True:
         analog_value1 = wpi.analogRead(adc_pin1)
         analog_value2 = wpi.analogRead(adc_pin2)
+
+        # input_state = wpi.digitalRead(sw_pin)
+        # print(input_state)
+        read_switch(sw_pin)
         
         # Normalize values and convert to float
         yaw_change = convert_int_to_float(normalize_adc_value(analog_value2), 120)  # Assuming deadband of 50
